@@ -260,19 +260,8 @@ std::vector<double> generateEquispacedSegments(double Xmin, double Xmax, int num
     return segments;
 }
 
+void generateTile(double Xmin, double Xmax, int nX, double Zmin, double Zmax, double Yzero, std::vector<double> Y_all, int nodesec  ){
 
-int main(int argc, char **argv)
-{ 
-    
-    //////////////////
-    // Creating points
-    //////////////////
-    
-    std::vector<double> Y_all = {1.0, 1.1, 1.2, 1.3, 1.4, 2.1, 2.2, 2.3, 2.4, 2.5,3.0, 3.0, 3.0, 3.0, 3.0};
-    int nodesec = 5;
-    double Xmin = 0;
-    double Xmax = 1.5;
-    int nX = 3;
     std::vector<double> Xins = generateEquispacedSegments(Xmin, Xmax, nX);
     std::vector<double> XSym = generateEquispacedSegments(Xmax+(Xins[1]-Xins[0]), Xmax+(Xmax-Xmin), nX-1);
 	std::reverse(XSym.begin(), XSym.end());
@@ -280,20 +269,6 @@ int main(int argc, char **argv)
 	printVectordouble(Xins);
 	printVectordouble(XSym);
 	
-    double Zmin = 0.0;
-    double Zmax = 28.5;
-    double Yzero = -0.1;
-    
-
-	// Initialize gmsh
-    gmsh::initialize();
-
-    // Create a new model
-    gmsh::model::add("myModel");
-
-    // Disable terminal outputs (optional)
-    gmsh::option::setNumber("General.Terminal", 1);
-
     int surfaceTagi,idx;
 	std::vector<std::vector<int>> lineTagSecs,lineTag4Surf,PointTagSecs,combinedpts;
 	std::vector<int> SurfTagSecs, lineTags, pointTags, line4;
@@ -391,7 +366,35 @@ int main(int argc, char **argv)
 
     // Create a volume from the surface loop
     int volume = gmsh::model::geo::addVolume({surfaceLoop});
+}
+
+
+int main(int argc, char **argv)
+{ 
     
+    //////////////////
+    // Creating points
+    //////////////////
+    
+    std::vector<double> Y_all = {1.0, 1.1, 1.2, 1.3, 1.4, 2.1, 2.2, 2.3, 2.4, 2.5,3.0, 3.0, 3.0, 3.0, 3.0};
+    int nodesec = 5, nX=3;
+    double Xmin = 0;
+    double Xmax = 1.5;	
+    double Zmin = 0.0;
+    double Zmax = 28.5;
+    double Yzero = -0.1;
+    
+
+	// Initialize gmsh
+    gmsh::initialize();
+
+    // Create a new model
+    gmsh::model::add("myModel");
+
+    // Disable terminal outputs (optional)
+    gmsh::option::setNumber("General.Terminal", 1);
+    
+	generateTile(Xmin, Xmax, nX, Zmin, Zmax, Yzero, Y_all, nodesec );
     //////////////////
     // Meshing
     //////////////////
