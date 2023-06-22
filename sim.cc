@@ -213,6 +213,14 @@ void printVector(const std::vector<int>& vec)
     }
     std::cout << std::endl;
 }
+void printVectordouble(const std::vector<double>& vec)
+{
+    for (const auto& value : vec)
+    {
+        std::cout << value << " ";
+    }
+    std::cout << std::endl;
+}
 std::vector<int> getElementsAtIndex(const std::vector<std::vector<int>>& vec, int index, int a, int b)
 {
     std::vector<int> result;
@@ -232,7 +240,25 @@ std::vector<int> getElementsAtIndex(const std::vector<std::vector<int>>& vec, in
     return result;
 }
 
+std::vector<double> generateEquispacedSegments(double Xmin, double Xmax, int numElements)
+{
+    std::vector<double> segments;
 
+    if (numElements <= 1)
+    {
+        segments.push_back(Xmin);
+        return segments;
+    }
+
+    double step = (Xmax - Xmin) / (numElements - 1);
+    for (int i = 0; i < numElements; ++i)
+    {
+        double X = Xmin + i * step;
+        segments.push_back(X);
+    }
+
+    return segments;
+}
 
 
 int main(int argc, char **argv)
@@ -244,9 +270,18 @@ int main(int argc, char **argv)
     
     std::vector<double> Y_all = {1.0, 1.1, 1.2, 1.3, 1.4, 2.1, 2.2, 2.3, 2.4, 2.5,3.0, 3.0, 3.0, 3.0, 3.0};
     int nodesec = 5;
-    std::vector<double> Xins = {10.0, 12.0};
+    double Xmin = 0;
+    double Xmax = 1.5;
+    int nX = 3;
+    std::vector<double> Xins = generateEquispacedSegments(Xmin, Xmax, nX);
+    std::vector<double> XSym = generateEquispacedSegments(Xmax+(Xins[1]-Xins[0]), Xmax+(Xmax-Xmin), nX-1);
+	std::reverse(XSym.begin(), XSym.end());
+	
+	printVectordouble(Xins);
+	printVectordouble(XSym);
+	
     double Zmin = 0.0;
-    double Zmax = 1.0;
+    double Zmax = 28.5;
     double Yzero = -0.1;
     
 
@@ -273,14 +308,23 @@ int main(int argc, char **argv)
 		pointTags = createGmshPoints(points, ptc);
 		PointTagSecs.push_back(pointTags);
 		ptc=pointTags.back();
-
 	}
 	
-    //////////////////
+	for (int sec = Xins.size()-2; sec > -1 ; sec--) {
+		std::vector<double> Y = extractRange(Y_all, sec, nodesec);
+		double Xin = XSym[sec];
+
+		std::vector<std::vector<double>> points = calculatePoints(Y, Xin, Zmin, Zmax, Yzero);
+		pointTags = createGmshPoints(points, ptc);
+		PointTagSecs.push_back(pointTags);
+		ptc=pointTags.back();
+	}    
+	
+	//////////////////
     // Creating Lines
     //////////////////
     int nodesec1=nodesec*2-1;
-	for (int sec = 0; sec < Xins.size()-1; sec++) {
+	for (int sec = 0; sec < Xins.size()*2-2; sec++) {
 		combinedpts =combineAllIndicesint(PointTagSecs[sec], PointTagSecs[sec+1]);
 		for (int surf = 0; surf < nodesec1+2; surf++) {
 			if (sec==0 && surf==0){
@@ -333,8 +377,8 @@ int main(int argc, char **argv)
     std::reverse(s1.begin(), s1.end()); // Reverse the copy
 	createGmshSurface(s1,stc);SurfTagSecs.push_back(stc);stc++;
 
-
-	std::vector<int> s2 = getElementsAtIndex(lineTag4Surf,2, (Xins.size()-2)*(nodesec1+2), (Xins.size()-1)*(nodesec1+2)-1);
+	
+	std::vector<int> s2 = getElementsAtIndex(lineTag4Surf,2, (Xins.size()*2-3)*(nodesec1+2), (Xins.size()*2-2)*(nodesec1+2)-1);
 	createGmshSurface(s2,stc);SurfTagSecs.push_back(stc);stc++;
 	
 	
