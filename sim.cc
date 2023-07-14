@@ -16,15 +16,6 @@
 #include <iostream>
 #include <vector>
 #include <algorithm>
-#include "G4VPhysicalVolume.hh"
-#include "G4LogicalVolume.hh"
-#include "G4PVPlacement.hh"
-#include "G4NistManager.hh"
-#include "G4SystemOfUnits.hh"
-#include "G4UserLimits.hh"
-#include "G4Transform3D.hh"
-#include "G4RotationMatrix.hh"
-#include "G4Tet.hh"
 #include <G4UIcommand.hh>
 
 std::vector<std::vector<double>> appendReversedInitialVector(const std::vector<std::vector<double>>& inputVector)
@@ -143,7 +134,7 @@ std::vector<int> createGmshLines(const std::vector<int>& pointTags, int taginit,
     std::vector<int> lineTags;
     int lineTag;
 
-    int count = 1;
+    int count = 1,l0;
     int pointCount = pointTags.size();
 
     // Create lines between successive points, excluding the lines with excluded indices
@@ -154,7 +145,9 @@ std::vector<int> createGmshLines(const std::vector<int>& pointTags, int taginit,
 
         lineTag = taginit + count;
         std::cout<<lineTag<<" ";
-        gmsh::model::geo::addLine(pointTags[i], pointTags[i + 1], lineTag);
+        l0=gmsh::model::geo::addLine(pointTags[i], pointTags[i + 1], lineTag);
+        gmsh::model::geo::mesh::setTransfiniteCurve(l0,1);
+
         lineTags.push_back(lineTag);
         count++;
     }
@@ -240,6 +233,50 @@ std::vector<int> getElementsAtIndex(const std::vector<std::vector<int>>& vec, in
     return result;
 }
 
+std::vector<int> getOddElementsAtIndex(const std::vector<std::vector<int>>& vec, int index, int a, int b)
+{    
+	std::vector<int> result;
+
+    for (int i = a; i <= b; ++i)
+    {
+        if (i >= 0 && i < vec.size())
+        {
+            const auto& subvector = vec[i];
+            if (index >= 0 && index < subvector.size())
+            {
+                if (i % 2 != 0) // Check if the value is odd
+                {
+                    result.push_back(subvector[index]);
+                }
+            }
+        }
+    }
+
+    return result;
+}
+
+std::vector<int> getEvenElementsAtIndex(const std::vector<std::vector<int>>& vec, int index, int a, int b)
+{    
+	std::vector<int> result;
+
+    for (int i = a; i <= b; ++i)
+    {
+        if (i >= 0 && i < vec.size())
+        {
+            const auto& subvector = vec[i];
+            if (index >= 0 && index < subvector.size())
+            {
+                if (i % 2 == 0) // Check if the value is odd
+                {
+                    result.push_back(subvector[index]);
+                }
+            }
+        }
+    }
+
+    return result;
+}
+
 std::vector<double> generateEquispacedSegments(double Xmin, double Xmax, int numElements)
 {
     std::vector<double> segments;
@@ -259,7 +296,15 @@ std::vector<double> generateEquispacedSegments(double Xmin, double Xmax, int num
 
     return segments;
 }
-
+std::vector<int> getValuesAtIndices(const std::vector<int>& vec, const std::vector<int>& indices) {
+    std::vector<int> result;
+    for (int index : indices) {
+        if (index >= 0 && index < vec.size()) {
+            result.push_back(vec[index]);
+        }
+    }
+    return result;
+}
 void generateTile(double Xmin, double Xmax, int nX, double Zmin, double Zmax, double Yzero, std::vector<double> Y_all, int nodesec  ){
 
     std::vector<double> Xins = generateEquispacedSegments(Xmin, Xmax, nX);
@@ -270,8 +315,8 @@ void generateTile(double Xmin, double Xmax, int nX, double Zmin, double Zmax, do
 	printVectordouble(XSym);
 	
     int surfaceTagi,idx;
-	std::vector<std::vector<int>> lineTagSecs,lineTag4Surf,PointTagSecs,combinedpts;
-	std::vector<int> SurfTagSecs, lineTags, pointTags, line4;
+	std::vector<std::vector<int>> lineTagSecs,lineTag4Surf,PointTagSecs, combinedpts, lineTagsAll;
+	std::vector<int> SurfTagSecs, lineTags1,lineTags2, pointTags, line4, ptsv;
 	int ptc=1000,ltc=2000,stc=3000;
 	
 	
@@ -295,77 +340,180 @@ void generateTile(double Xmin, double Xmax, int nX, double Zmin, double Zmax, do
 		ptc=pointTags.back();
 	}    
 	
+	std::vector<int> tr1,tr2;
 	//////////////////
     // Creating Lines
     //////////////////
+	std::cout<<"nodesec iter: "<<nodesec<<std::endl;
     int nodesec1=nodesec*2-1;
+	std::cout<<"nodesec iter: "<<nodesec1<<std::endl;
+
 	for (int sec = 0; sec < Xins.size()*2-2; sec++) {
 		combinedpts =combineAllIndicesint(PointTagSecs[sec], PointTagSecs[sec+1]);
 		for (int surf = 0; surf < nodesec1+2; surf++) {
 			if (sec==0 && surf==0){
-				lineTags = createGmshLines(combinedpts[surf], ltc);
-				line4=lineTags;
+				ptsv=combinedpts[surf];
+				tr1 = getValuesAtIndices(ptsv,{0,1,2});
+				tr2 = getValuesAtIndices(ptsv,{0,2,3});
+
+				lineTags1 = createGmshLines(tr1, ltc,{});
+				lineTagsAll.push_back(lineTags1);
+				line4=lineTags1;
 				lineTag4Surf.push_back(line4);
-				ltc=lineTags.back();
+				ltc=lineTags1.back();
+
+				lineTags2 = createGmshLines(tr2, ltc,{0});
+				lineTagsAll.push_back(lineTags2);
+				line4={-lineTags1[2],lineTags2[0],lineTags2[1]};
+				lineTag4Surf.push_back(line4);
+				ltc=lineTags2.back();
 			}else if (sec==0 && surf<nodesec1+1){
-				lineTags = createGmshLines(combinedpts[surf], ltc, {3});
-				line4={lineTags[0],lineTags[1],lineTags[2],-lineTag4Surf.back()[1]};
-				lineTag4Surf.push_back(line4);
-				ltc=lineTags.back();
+				ptsv=combinedpts[surf];
+
+				if(surf<nodesec-1){
+					tr1 = getValuesAtIndices(ptsv,{0,1,2});
+					tr2 = getValuesAtIndices(ptsv,{0,2,3});
+					
+					lineTags1 = createGmshLines(tr1, ltc,{});
+					lineTagsAll.push_back(lineTags1);
+					line4=lineTags1;
+					lineTag4Surf.push_back(line4);
+					ltc=lineTags1.back();
+
+					lineTags2 = createGmshLines(tr2, ltc,{0,2});
+					lineTagsAll.push_back(lineTags2);
+					line4={-lineTags1[2],lineTags2[0],-lineTag4Surf[(surf-1)*2+0][1]};
+					lineTag4Surf.push_back(line4);
+					ltc=lineTags2.back();
+				}else{
+					tr1 = getValuesAtIndices(ptsv,{0,1,3});
+					tr2 = getValuesAtIndices(ptsv,{1,2,3});
+
+					lineTags1 = createGmshLines(tr1, ltc,{2});
+					lineTagsAll.push_back(lineTags1);
+					ltc=lineTags1.back();
+					lineTags2 = createGmshLines(tr2, ltc,{2});
+					lineTagsAll.push_back(lineTags2);
+					ltc=lineTags2.back();
+					
+					line4={lineTags1[0],lineTags1[1],-lineTag4Surf[(surf-1)*2+0][1]};
+					lineTag4Surf.push_back(line4);
+					
+					line4={-lineTags1[1],lineTags2[0],lineTags2[1]};
+					lineTag4Surf.push_back(line4);
+					}
 			}else if(sec==0 && surf==nodesec1+1){
-				lineTags = createGmshLines(combinedpts[surf], ltc, {1,3});
-				line4={lineTags[0],-lineTag4Surf[0][3],lineTags[1],-lineTag4Surf.back()[1]};
+				ptsv=combinedpts[surf];
+				tr1 = getValuesAtIndices(ptsv,{0,1,2});
+				tr2 = getValuesAtIndices(ptsv,{0,2,3});
+
+				lineTags1 = createGmshLines(tr1, ltc,{1});
+				lineTagsAll.push_back(lineTags1);
+				line4={lineTags1[0],-lineTag4Surf[1][2],lineTags1[1]};
 				lineTag4Surf.push_back(line4);
-				ltc=lineTags.back();
+				ltc=lineTags1.back();
+
+				lineTags2 = createGmshLines(tr2, ltc,{0,2});
+				lineTagsAll.push_back(lineTags2);
+				line4={-lineTags1[1],lineTags2[0],-lineTag4Surf[(surf-1)*2+0][1]};
+				lineTag4Surf.push_back(line4);
+				ltc=lineTags2.back();
+				
 			}else if(sec > 0  && surf==0){
-				lineTags = createGmshLines(combinedpts[surf], ltc, {0});
-				line4={-lineTag4Surf[(sec-1)*(nodesec1+2)+surf][2],lineTags[0],lineTags[1],lineTags[2]};
+				ptsv=combinedpts[surf];
+				tr1 = getValuesAtIndices(ptsv,{0,1,2});
+				tr2 = getValuesAtIndices(ptsv,{0,2,3});
+
+				lineTags1 = createGmshLines(tr1, ltc,{0});
+				lineTagsAll.push_back(lineTags1);
+				line4={-lineTag4Surf[(sec-1)*(nodesec1+2)*2+surf*2+1][1],lineTags1[0],lineTags1[1]};;
 				lineTag4Surf.push_back(line4);
-				ltc=lineTags.back();
+				ltc=lineTags1.back();
+
+				lineTags2 = createGmshLines(tr2, ltc,{0});
+				lineTagsAll.push_back(lineTags2);
+				line4={-lineTags1[1],lineTags2[0],lineTags2[1]};
+				lineTag4Surf.push_back(line4);
+				ltc=lineTags2.back();
+				 
 			}else if(sec > 0 && surf<nodesec1+1){
-				lineTags = createGmshLines(combinedpts[surf], ltc, {0,3});
-				line4={-lineTag4Surf[(sec-1)*(nodesec1+2)+surf][2],lineTags[0],lineTags[1],-lineTag4Surf.back()[1]};
+				
+				ptsv=combinedpts[surf];
+				tr1 = getValuesAtIndices(ptsv,{0,1,2});
+				tr2 = getValuesAtIndices(ptsv,{0,2,3});
+
+				lineTags1 = createGmshLines(tr1, ltc,{0});
+				lineTagsAll.push_back(lineTags1);
+				line4={-lineTag4Surf[(sec-1)*(nodesec1+2)*2+surf*2+1][1],lineTags1[0],lineTags1[1]};;
 				lineTag4Surf.push_back(line4);
-				ltc=lineTags.back();
+				ltc=lineTags1.back();
+
+				lineTags2 = createGmshLines(tr2, ltc,{0,2});
+				lineTagsAll.push_back(lineTags2);
+				line4={-lineTags1[1],lineTags2[0],-lineTag4Surf[(sec)*(nodesec1+2)*2+(surf-1)*2+0][1]};
+				lineTag4Surf.push_back(line4);
+				ltc=lineTags2.back();
+				
 			}else if(sec > 0  && surf==nodesec1+1){
-				lineTags = createGmshLines(combinedpts[surf], ltc, {0,3,4});
-				line4={-lineTag4Surf[(sec-1)*(nodesec1+2)+surf][2],-lineTag4Surf[(sec)*(nodesec1+2)][3],lineTags[1],-lineTag4Surf.back()[1]};
+				ptsv=combinedpts[surf];
+				tr1 = getValuesAtIndices(ptsv,{0,1,2});
+				tr2 = getValuesAtIndices(ptsv,{0,2,3});
+
+				lineTags1 = createGmshLines(tr1, ltc,{0,1});
+				lineTagsAll.push_back(lineTags1);
+				line4={-lineTag4Surf[(sec-1)*(nodesec1+2)*2+surf*2+1][1],-lineTag4Surf[(sec)*(nodesec1+2)*2+surf*0+1][2],lineTags1[0]};;
 				lineTag4Surf.push_back(line4);
-				ltc=lineTags.back();
+				ltc=lineTags1.back();
+
+				lineTags2 = createGmshLines(tr2, ltc,{0,2});
+				lineTagsAll.push_back(lineTags2);
+				line4={-lineTags1[0],lineTags2[0],-lineTag4Surf[(sec)*(nodesec1+2)*2+(surf-1)*2+0][1]};
+				lineTag4Surf.push_back(line4);
+				ltc=lineTags2.back();
 			}
  		}
 	}
 	std::cout<<ltc<<std::endl;
+	std::cout<<"### Surface Tags:"<<std::endl;
 	printVectorOfVectors(lineTag4Surf);
 	
     //////////////////
     // Creating Surfaces 
     //////////////////
-
+		/*
 	for (const auto& group : lineTag4Surf)
 	{
 		// Create surface using the four point tags in the group
 		createGmshSurface(group,stc);SurfTagSecs.push_back(stc);stc++;
 	}
-	
-	std::vector<int> s1 = getElementsAtIndex(lineTag4Surf,0, 0, nodesec1+1);
+
+
+	std::vector<int> s1 = getEvenElementsAtIndex(lineTag4Surf,0, 0, nodesec1*2+2);
+	std::cout<<"s1: "<<std::endl;
+	printVector(s1);
     std::reverse(s1.begin(), s1.end()); // Reverse the copy
 	createGmshSurface(s1,stc);SurfTagSecs.push_back(stc);stc++;
 
 	
-	std::vector<int> s2 = getElementsAtIndex(lineTag4Surf,2, (Xins.size()*2-3)*(nodesec1+2), (Xins.size()*2-2)*(nodesec1+2)-1);
+	std::vector<int> s2 = getOddElementsAtIndex(lineTag4Surf,1, lineTag4Surf.size()-(nodesec1*2+3), lineTag4Surf.size()+1);
+	std::cout<<"s2: "<<std::endl;
+	printVector(s2);	
 	createGmshSurface(s2,stc);SurfTagSecs.push_back(stc);stc++;
+	*/
+    gmsh::model::geo::synchronize();
 	
+
 	
     //////////////////
     // Creating Solid
     //////////////////
     
     // Create a surface loop
-    int surfaceLoop = gmsh::model::geo::addSurfaceLoop(SurfTagSecs);
+    //int surfaceLoop = gmsh::model::geo::addSurfaceLoop(SurfTagSecs);
 
     // Create a volume from the surface loop
-    int volume = gmsh::model::geo::addVolume({surfaceLoop});
+    //int volume = gmsh::model::geo::addVolume({surfaceLoop});	
+
 }
 
 
@@ -376,8 +524,9 @@ int main(int argc, char **argv)
     // Creating points
     //////////////////
     
-    std::vector<double> Y_all = {1.0, 1.1, 1.2, 1.3, 1.4, 2.1, 2.2, 2.3, 2.4, 2.5,3.0, 3.0, 3.0, 3.0, 3.0};
-    int nodesec = 5, nX=3;
+    std::vector<double> Y_all = {	1.0, 1.0,1.0, 
+									1.0, 1.0,1.0};
+    int nodesec = 3, nX=2;
     double Xmin = 0;
     double Xmax = 1.5;	
     double Zmin = 0.0;
@@ -401,7 +550,7 @@ int main(int argc, char **argv)
     // Generate the mesh
     gmsh::model::geo::synchronize();
     
-    gmsh::model::mesh::generate(3);
+    //gmsh::model::mesh::generate(3);
     
 	//generateMesh();
     //////////////////
